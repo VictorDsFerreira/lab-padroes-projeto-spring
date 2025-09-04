@@ -1,8 +1,7 @@
 package one.digitalinnovation.gof.service.impl;
 
-import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 import one.digitalinnovation.gof.model.Cliente;
@@ -42,31 +41,37 @@ public class ClienteServiceImpl implements ClienteService {
 	@Override
 	public Cliente buscarPorId(Long id) {
 		// Buscar Cliente por ID.
-		Optional<Cliente> cliente = clienteRepository.findById(id);
-		return cliente.get();
+		return clienteRepository.findById(id)
+			.orElseThrow(() -> new ResourceNotFoundException("Cliente não encontrado: id=" + id));
 	}
 
 	@Override
-	public void inserir(Cliente cliente) {
-		salvarClienteComCep(cliente);
+	@Transactional
+	public Cliente inserir(Cliente cliente) {
+		return salvarClienteComCep(cliente);
 	}
 
 	@Override
-	public void atualizar(Long id, Cliente cliente) {
+	@Transactional
+	public Cliente atualizar(Long id, Cliente cliente) {
 		// Buscar Cliente por ID, caso exista:
-		Optional<Cliente> clienteBd = clienteRepository.findById(id);
-		if (clienteBd.isPresent()) {
-			salvarClienteComCep(cliente);
-		}
+		Cliente existente = clienteRepository.findById(id)
+			.orElseThrow(() -> new ResourceNotFoundException("Cliente não encontrado: id=" + id));
+		cliente.setId(existente.getId());
+		return salvarClienteComCep(cliente);
 	}
 
 	@Override
+	@Transactional
 	public void deletar(Long id) {
 		// Deletar Cliente por ID.
+		if (!clienteRepository.existsById(id)) {
+			throw new ResourceNotFoundException("Cliente não encontrado: id=" + id);
+		}
 		clienteRepository.deleteById(id);
 	}
 
-	private void salvarClienteComCep(Cliente cliente) {
+	private Cliente salvarClienteComCep(Cliente cliente) {
 		// Verificar se o Endereco do Cliente já existe (pelo CEP).
 		String cep = cliente.getEndereco().getCep();
 		Endereco endereco = enderecoRepository.findById(cep).orElseGet(() -> {
@@ -77,7 +82,7 @@ public class ClienteServiceImpl implements ClienteService {
 		});
 		cliente.setEndereco(endereco);
 		// Inserir Cliente, vinculando o Endereco (novo ou existente).
-		clienteRepository.save(cliente);
+		return clienteRepository.save(cliente);
 	}
 
 }
